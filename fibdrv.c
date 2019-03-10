@@ -26,6 +26,49 @@ static DEFINE_MUTEX(fib_mutex);
 
 static long long fib_sequence(long long k)
 {
+    long long start, end;
+    start = ktime_get_ns();
+#ifdef VER_DBL
+
+    if (k < 2)
+        return k;
+    long long odd[k], even[k], ind = 1;
+    char chose[k];
+
+    odd[0] = (k & 1) ? k : k + 1;
+    even[0] = odd[0] - 1;
+    chose[0] = k & 1;  // k%2 == k&1
+
+    // Pick the number sequence that need to be determined
+    while (even[ind - 1] > 2) {
+        long long div = even[ind - 1] / 2;
+
+        odd[ind] = (div % 2 == 0) ? div + 1 : div;
+        even[ind] = odd[ind] - 1;
+        chose[ind] = div % 2;
+        ++ind;
+    }
+
+    odd[ind - 1] = 2;   // fib(3)
+    even[ind - 1] = 1;  // fib(2)
+    for (long long i = ind - 2; i >= 0; --i) {
+        if (chose[i + 1]) {  // use odd as doubling, need to manipulate even and
+                             // swap
+            even[i + 1] = odd[i + 1] + even[i + 1];
+            even[i + 1] ^= odd[i + 1];
+            odd[i + 1] ^= even[i + 1];
+            even[i + 1] ^= odd[i + 1];
+        }
+        // general formula of fast doubling (always double the "even"
+        odd[i] = odd[i + 1] * odd[i + 1] + even[i + 1] * even[i + 1];
+        even[i] = even[i + 1] * (2 * odd[i + 1] - even[i + 1]);
+    }
+    end = ktime_get_ns();
+    printk("%lld %lld\n", k, end - start);
+    return (!chose[0]) ? even[0] : odd[0];
+#endif
+
+#ifdef VER_DP
     /* FIXME: use clz/ctz and fast algorithms to speed up */
     long long f[k + 2];
 
@@ -35,8 +78,10 @@ static long long fib_sequence(long long k)
     for (int i = 2; i <= k; i++) {
         f[i] = f[i - 1] + f[i - 2];
     }
-
+    end = ktime_get_ns();
+    printk("%lld %lld\n", k, end - start);
     return f[k];
+#endif
 }
 
 static int fib_open(struct inode *inode, struct file *file)
